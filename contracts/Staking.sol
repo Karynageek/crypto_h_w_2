@@ -1,26 +1,18 @@
 //SPDX-License-Identifier: Unlicense
 pragma solidity ^0.8.0;
 
-import "@openzeppelin/contracts/access/AccessControl.sol";
+import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "./OrangeToken.sol";
 
-interface ERC20 {
-    function transferFrom(
-        address from,
-        address to,
-        uint256 amount
-    ) external returns (bool success);
-}
-
-contract Staking is AccessControl {
+contract Staking {
     OrangeToken public orangeToken;
-    address public ortWethPair;
+    IERC20 public ortWethPair;
 
-    constructor(OrangeToken _orangeToken, address _ortWethPair) {
+    uint256 public constant ANNUAL_PERCENT = 20;
+
+    constructor(OrangeToken _orangeToken, IERC20 _ortWethPair) {
         orangeToken = _orangeToken;
         ortWethPair = _ortWethPair;
-
-        _grantRole("ADMIN_ROLE", msg.sender);
     }
 
     mapping(address => Deposit) private userInfo;
@@ -35,58 +27,68 @@ contract Staking is AccessControl {
     function stake(uint256 amount) external {
         Deposit storage deposit = userInfo[msg.sender];
 
-        if (deposit.amount != 0) {
+        if (deposit.amount > 0) {
             claim();
         }
 
         deposit.amount = amount;
         deposit.startDate = block.timestamp;
 
-        ERC20(ortWethPair).transferFrom(msg.sender, address(this), amount);
+        ortWethPair.transferFrom(msg.sender, address(this), amount);
 
         emit Stake(msg.sender, amount, deposit.startDate);
     }
 
     function claim() public {
         Deposit storage deposit = userInfo[msg.sender];
-        require(deposit.amount != 0, "No reward");
 
-        uint256 passedPeriod = (block.timestamp - deposit.startDate) /
-            60 /
-            60 /
-            24;
+        uint256 payoutAmount = getPayoutAmount(
+            deposit.amount,
+            deposit.startDate
+        );
 
-        uint256 payoutAmount = (passedPeriod * 20) / 100 / 365;
+        if (payoutAmount > 0) {
+            deposit.startDate = block.timestamp;
+            orangeToken.mint(msg.sender, payoutAmount);
+        }
+    }
 
-        deposit.startDate = block.timestamp;
+    function getPayoutAmount(uint256 _amount, uint256 _startDate)
+        internal
+        view
+        returns (uint256 payoutAmount)
+    {
+        uint256 passedPeriod = (block.timestamp - _startDate) / 86400;
 
-        orangeToken.mint(msg.sender, payoutAmount);
+        return (_amount * passedPeriod * ANNUAL_PERCENT) / 36500;
     }
 
     function withdraw(uint256 amount) external {
-        claim();
+        Deposit storage deposit = userInfo[msg.sender];
 
-        ERC20(ortWethPair).transferFrom(address(this), msg.sender, amount);
+        if (deposit.amount > 0) {
+            claim();
+        }
 
-        delete userInfo[msg.sender];
+        deposit.amount -= amount;
+
+        ortWethPair.transfer(msg.sender, amount);
     }
 
     function getUserInfo(address user)
         external
         view
         returns (
-            uint256 _amount,
-            uint256 _payoutAmount,
-            uint256 _startDate
+            uint256 totalAmount,
+            uint256 amountToPay,
+            uint256 startDate
         )
     {
         Deposit memory deposit = userInfo[user];
-        uint256 passedPeriod = (block.timestamp - deposit.startDate) /
-            60 /
-            60 /
-            24;
-
-        uint256 payoutAmount = (passedPeriod * 20) / 100 / 365;
+        uint256 payoutAmount = getPayoutAmount(
+            deposit.amount,
+            deposit.startDate
+        );
 
         return (deposit.amount, payoutAmount, deposit.startDate);
     }

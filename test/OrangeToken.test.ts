@@ -110,7 +110,7 @@ describe('Orange Token contract', () => {
         .withArgs(owner.address, addr1.address, amount);
     })
 
-    it('rejects mint by zero address', async () => {
+    it('rejects transfer by zero address', async () => {
       await expect(token.transferFrom(owner.address, zeroAddress, amount)).to.be.revertedWith('Transfer to the zero address');
     })
 

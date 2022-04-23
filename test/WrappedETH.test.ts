@@ -8,12 +8,11 @@ describe('WrappedETH contract', () => {
   let token: WrappedETH;
   let owner: SignerWithAddress;
   let addr1: SignerWithAddress;
-  let addr2: SignerWithAddress;
   let addrs: SignerWithAddress[];
   const zeroAddress = '0x0000000000000000000000000000000000000000';
 
   beforeEach(async () => {
-    [owner, addr1, addr2, ...addrs] = await ethers.getSigners();
+    [owner, addr1, ...addrs] = await ethers.getSigners();
 
     const WrappedETH = (await ethers.getContractFactory('WrappedETH')) as WrappedETH__factory;
     token = await WrappedETH.deploy();

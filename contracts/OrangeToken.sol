@@ -9,6 +9,8 @@ contract OrangeToken is AccessControl {
     uint8 private _decimals;
     uint256 private _totalSupply;
 
+    bytes32 public constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
+
     mapping(address => uint256) private _balances;
     mapping(address => mapping(address => uint256)) private _allowances;
 
@@ -29,7 +31,8 @@ contract OrangeToken is AccessControl {
         _symbol = symbolToken;
         _decimals = decimalsToken;
 
-        _grantRole("ADMIN_ROLE", msg.sender);
+        _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
+        _grantRole(ADMIN_ROLE, msg.sender);
 
         _mint(msg.sender, totalSupplyToken * (10**decimalsToken));
     }
@@ -106,14 +109,14 @@ contract OrangeToken is AccessControl {
 
     function mint(address _account, uint256 _amount)
         external
-        onlyRole("ADMIN_ROLE")
+        onlyRole(ADMIN_ROLE)
     {
         _mint(_account, _amount);
     }
 
     function burn(address _account, uint256 _amount)
         external
-        onlyRole("ADMIN_ROLE")
+        onlyRole(ADMIN_ROLE)
     {
         require(_account != address(0), "Burn to the zero address");
         require(_balances[_account] >= _amount, "Amount exceeds balance");
