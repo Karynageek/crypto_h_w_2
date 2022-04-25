@@ -58,21 +58,23 @@ contract Staking {
         view
         returns (uint256 payoutAmount)
     {
-        uint256 passedPeriod = (block.timestamp - _startDate) / 86400;
-
-        return (_amount * passedPeriod * ANNUAL_PERCENT) / 36500;
+        return
+            ((block.timestamp - _startDate) * _amount * ANNUAL_PERCENT) /
+            3153600000;
     }
 
-    function withdraw(uint256 amount) external {
+    function withdraw(uint256 _amount) external {
         Deposit storage deposit = userInfo[msg.sender];
+
+        require(deposit.amount >= _amount, "Amount exceeds staking");
 
         if (deposit.amount > 0) {
             claim();
         }
 
-        deposit.amount -= amount;
+        deposit.amount -= _amount;
 
-        ortWethPair.transfer(msg.sender, amount);
+        ortWethPair.transfer(msg.sender, _amount);
     }
 
     function getUserInfo(address user)
