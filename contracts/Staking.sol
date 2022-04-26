@@ -22,7 +22,9 @@ contract Staking {
         uint256 startDate;
     }
 
-    event Stake(address indexed user, uint256 amount, uint256 startDate);
+    event Stake(address indexed user, uint256 amount);
+    event Claim(address indexed user, uint256 payoutAmount);
+    event Withdraw(address indexed user, uint256 amount);
 
     function stake(uint256 amount) external {
         Deposit storage deposit = userInfo[msg.sender];
@@ -36,7 +38,7 @@ contract Staking {
 
         ortWethPair.transferFrom(msg.sender, address(this), amount);
 
-        emit Stake(msg.sender, amount, deposit.startDate);
+        emit Stake(msg.sender, amount);
     }
 
     function claim() public {
@@ -50,6 +52,8 @@ contract Staking {
         if (payoutAmount > 0) {
             deposit.startDate = block.timestamp;
             orangeToken.mint(msg.sender, payoutAmount);
+
+            emit Claim(msg.sender, payoutAmount);
         }
     }
 
@@ -59,7 +63,7 @@ contract Staking {
         returns (uint256 payoutAmount)
     {
         return
-            ((block.timestamp - _startDate) * _amount * ANNUAL_PERCENT) /
+            ((block.timestamp - _startDate) * (_amount * ANNUAL_PERCENT)) /
             3153600000;
     }
 
@@ -75,10 +79,12 @@ contract Staking {
         deposit.amount -= _amount;
 
         ortWethPair.transfer(msg.sender, _amount);
+
+        emit Withdraw(msg.sender, _amount);
     }
 
     function getUserInfo(address user)
-        external
+        public
         view
         returns (
             uint256 totalAmount,

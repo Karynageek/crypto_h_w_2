@@ -19,6 +19,7 @@ describe('Staking contract', () => {
   let owner: SignerWithAddress;
   let addr1: SignerWithAddress;
   let addrs: SignerWithAddress[];
+  const zeroAddress = '0x0000000000000000000000000000000000000000';
 
   beforeEach(async () => {
     [owner, addr1, ...addrs] = await ethers.getSigners();
@@ -42,7 +43,7 @@ describe('Staking contract', () => {
   });
 
   describe('stakes', () => {
-    const amount = 100;
+    const amount = 1000;
 
     it('stakes successfully without claim', async () => {
 
@@ -56,13 +57,14 @@ describe('Staking contract', () => {
       const ownerBalanceAfter = await ortWethMockPair.balanceOf(owner.address);
       const stakingBalanceAfter = await ortWethMockPair.balanceOf(staking.address);
 
-      const { totalAmount, amountToPay, startDate } = await staking.getUserInfo(owner.address);
-
       expect(ownerBalanceAfter).to.equal(ownerBalancBefore.sub(amount));
       expect(stakingBalanceAfter).to.equal(stakingBalancBefore.add(amount));
 
       await expect(result).to.emit(staking, "Stake")
-        .withArgs(owner.address, amount, startDate);
+        .withArgs(owner.address, amount);
+
+      await expect(result).to.not.emit(orangeToken, "Transfer");
+      await expect(result).to.not.emit(staking, "Claim");
     })
 
     it('stakes successfully with claim', async () => {
@@ -76,25 +78,31 @@ describe('Staking contract', () => {
 
       await incrementNextBlockTimestamp(259200);
 
+      const { totalAmount, amountToPay, startDate } = await staking.getUserInfo(owner.address);
+
       const result = await staking.stake(amount);
 
       const ownerOrangeBalanceAfter = await orangeToken.balanceOf(owner.address);
       const ownerOrtWethBalanceAfter = await ortWethMockPair.balanceOf(owner.address);
       const stakingBalanceAfter = await ortWethMockPair.balanceOf(staking.address);
 
-      const { totalAmount, amountToPay, startDate } = await staking.getUserInfo(owner.address);
-
       expect(ownerOrangeBalanceAfter).to.equal(ownerOrangeBalanceBefore.add(amountToPay));
       expect(ownerOrtWethBalanceAfter).to.equal(ownerOrtWethBalanceBefore.sub(amount).sub(amount));
       expect(stakingBalanceAfter).to.equal(stakingBalanceBefore.add(amount).add(amount));
 
       await expect(result).to.emit(staking, "Stake")
-        .withArgs(owner.address, amount, startDate);
+        .withArgs(owner.address, amount);
+
+      await expect(result).to.emit(orangeToken, "Transfer")
+        .withArgs(owner.address, zeroAddress, amount);
+
+      await expect(result).to.emit(staking, "Claim")
+        .withArgs(owner.address, amountToPay);
     })
   })
 
   describe('claims', () => {
-    const amount = 100;
+    const amount = 1000;
 
     it('claims successfully', async () => {
       await ortWethMockPair.approve(staking.address, amount);
@@ -109,7 +117,7 @@ describe('Staking contract', () => {
       const ownerOrtWethBalanceBefore = await ortWethMockPair.balanceOf(owner.address);
       const stakingBalanceBefore = await ortWethMockPair.balanceOf(staking.address);
 
-      await staking.claim();
+      const result = await staking.claim();
 
       const ownerOrangeBalanceAfter = await orangeToken.balanceOf(owner.address);
       const ownerOrtWethBalanceAfter = await ortWethMockPair.balanceOf(owner.address);
@@ -118,12 +126,18 @@ describe('Staking contract', () => {
       expect(ownerOrangeBalanceAfter).to.equal(ownerOrangeBalanceBefore.add(amountToPay));
       expect(ownerOrtWethBalanceAfter).to.equal(ownerOrtWethBalanceBefore);
       expect(stakingBalanceAfter).to.equal(stakingBalanceBefore);
+
+      await expect(result).to.emit(orangeToken, "Transfer")
+        .withArgs(owner.address, zeroAddress, amount);
+
+      await expect(result).to.emit(staking, "Claim")
+        .withArgs(owner.address, amountToPay);
     })
 
   })
 
   describe('withdraws', () => {
-    const amount = 100;
+    const amount = 1000;
 
     it('withdraws successfully without claim', async () => {
       await ortWethMockPair.approve(staking.address, amount);
@@ -133,13 +147,19 @@ describe('Staking contract', () => {
       const ownerBalancBefore = await ortWethMockPair.balanceOf(owner.address);
       const stakingBalancBefore = await ortWethMockPair.balanceOf(staking.address);
 
-      await staking.withdraw(amount);
+      const result = await staking.withdraw(amount);
 
       const ownerBalanceAfter = await ortWethMockPair.balanceOf(owner.address);
       const stakingBalanceAfter = await ortWethMockPair.balanceOf(staking.address);
 
       expect(ownerBalanceAfter).to.equal(ownerBalancBefore.add(amount));
       expect(stakingBalanceAfter).to.equal(stakingBalancBefore.sub(amount));
+
+      await expect(result).to.emit(staking, "Withdraw")
+        .withArgs(owner.address, amount);
+
+      await expect(result).to.not.emit(staking, "Transfer");
+      await expect(result).to.not.emit(staking, "Claim");
     })
 
 
@@ -156,7 +176,7 @@ describe('Staking contract', () => {
       const ownerOrtWethBalanceBefore = await ortWethMockPair.balanceOf(owner.address);
       const stakingBalanceBefore = await ortWethMockPair.balanceOf(staking.address);
 
-      await staking.withdraw(amount);
+      const result = await staking.withdraw(amount);
 
       const ownerOrangeBalanceAfter = await orangeToken.balanceOf(owner.address);
       const ownerOrtWethBalanceAfter = await ortWethMockPair.balanceOf(owner.address);
@@ -165,6 +185,15 @@ describe('Staking contract', () => {
       expect(ownerOrangeBalanceAfter).to.equal(ownerOrangeBalanceBefore.add(amountToPay));
       expect(ownerOrtWethBalanceAfter).to.equal(ownerOrtWethBalanceBefore.add(amount));
       expect(stakingBalanceAfter).to.equal(stakingBalanceBefore.sub(amount));
+
+      await expect(result).to.emit(staking, "Withdraw")
+        .withArgs(owner.address, amount);
+
+      await expect(result).to.emit(orangeToken, "Transfer")
+        .withArgs(owner.address, zeroAddress, amount);
+
+      await expect(result).to.emit(staking, "Claim")
+        .withArgs(owner.address, amountToPay);
     })
 
     it('rejects withdraw when amount exceeds staking', async () => {
@@ -174,7 +203,7 @@ describe('Staking contract', () => {
   })
 
   describe('gets user info', () => {
-    const amount = 100;
+    const amount = 1000;
 
     it('gets user info successfully', async () => {
       await ortWethMockPair.approve(staking.address, amount);
