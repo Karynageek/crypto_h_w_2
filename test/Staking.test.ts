@@ -181,12 +181,8 @@ describe('Staking contract', () => {
   })
 
   describe('withdraws', () => {
-    const amount = parseUnits("0.00000000001", decimals);
-
     it('withdraws successfully without claim', async () => {
-      await ortWethMockPair.approve(staking.address, amount);
-
-      await staking.stake(amount);
+      const amount = parseUnits("0", decimals);
 
       const ownerBalancBefore = await ortWethMockPair.balanceOf(owner.address);
       const stakingBalancBefore = await ortWethMockPair.balanceOf(staking.address);
@@ -196,8 +192,8 @@ describe('Staking contract', () => {
       const ownerBalanceAfter = await ortWethMockPair.balanceOf(owner.address);
       const stakingBalanceAfter = await ortWethMockPair.balanceOf(staking.address);
 
-      expect(ownerBalanceAfter).to.equal(ownerBalancBefore.add(amount));
-      expect(stakingBalanceAfter).to.equal(stakingBalancBefore.sub(amount));
+      expect(ownerBalanceAfter).to.equal(ownerBalancBefore);
+      expect(stakingBalanceAfter).to.equal(stakingBalancBefore);
 
       await expect(result).to.emit(staking, "Withdraw")
         .withArgs(owner.address, amount);
@@ -208,6 +204,8 @@ describe('Staking contract', () => {
 
 
     it('withdraws successfully with claim', async () => {
+      const amount = parseUnits("0.00000000001", decimals);
+
       await ortWethMockPair.approve(staking.address, amount);
 
       await staking.stake(amount);
@@ -240,6 +238,8 @@ describe('Staking contract', () => {
     })
 
     it('rejects withdraw when amount exceeds staking', async () => {
+      const amount = parseUnits("0.00000000001", decimals);
+
       await expect(staking.withdraw(amount)).to.be.revertedWith('Amount exceeds staking');
     })
 
