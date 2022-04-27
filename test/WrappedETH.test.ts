@@ -1,5 +1,6 @@
 import { expect } from "chai";
 import { ethers } from "hardhat";
+import { parseUnits } from "@ethersproject/units";
 import { WrappedETH__factory } from "../typechain-types/factories/WrappedETH__factory";
 import { WrappedETH } from "../typechain-types/WrappedETH";
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
@@ -9,6 +10,7 @@ describe('WrappedETH contract', () => {
   let owner: SignerWithAddress;
   let addr1: SignerWithAddress;
   let addrs: SignerWithAddress[];
+  let decimals: number;
   const zeroAddress = '0x0000000000000000000000000000000000000000';
 
   beforeEach(async () => {
@@ -18,10 +20,12 @@ describe('WrappedETH contract', () => {
     token = await WrappedETH.deploy();
 
     await token.deployed();
+
+    decimals = await token.decimals();
   });
 
   describe('deposit', () => {
-    const amount = '100';
+    const amount = parseUnits("100", decimals);
 
     it('deposits successfully', async () => {
       const ownerBalancBefore = await token.balanceOf(owner.address);
@@ -41,7 +45,7 @@ describe('WrappedETH contract', () => {
   })
 
   describe('withdraw', () => {
-    const amount = '100';
+    const amount = parseUnits("100", decimals);
 
     it('withdraws successfully', async () => {
       await token.connect(addr1).deposit({ value: amount });

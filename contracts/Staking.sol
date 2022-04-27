@@ -84,7 +84,7 @@ contract Staking {
     }
 
     function getUserInfo(address user)
-        public
+        external
         view
         returns (
             uint256 totalAmount,

@@ -1,9 +1,10 @@
 import { expect } from "chai";
 import { ethers } from "hardhat";
-import { parseEther } from "@ethersproject/units";
+import { parseUnits } from "@ethersproject/units";
 import { OrangeToken__factory } from "../typechain-types/factories/OrangeToken__factory";
 import { OrangeToken } from "../typechain-types/OrangeToken";
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
+import { BigNumber } from "ethers";
 
 describe('Orange Token contract', () => {
   let token: OrangeToken;
@@ -14,7 +15,7 @@ describe('Orange Token contract', () => {
   const name = 'Orange Token';
   const symbol = 'ORT';
   const decimals = 18;
-  const totalSupply = parseEther('1000000000');
+  const totalSupply = parseUnits('1000000000');
   const zeroAddress = '0x0000000000000000000000000000000000000000';
 
   beforeEach(async () => {
@@ -49,7 +50,7 @@ describe('Orange Token contract', () => {
   });
 
   describe('transfers tokens', () => {
-    const amount = parseEther('100');
+    const amount = parseUnits("100", decimals);
 
     it('transfers successfully', async () => {
       const ownerBalanceBefore = await token.balanceOf(owner.address);
@@ -72,13 +73,13 @@ describe('Orange Token contract', () => {
     })
 
     it('rejects insufficient balances', async () => {
-      await expect(token.transfer(addr1.address, parseEther('10000000000'))).to.be.revertedWith('Insufficient balance');
+      await expect(token.transfer(addr1.address, parseUnits('10000000000', decimals))).to.be.revertedWith('Insufficient balance');
     })
   })
 
   describe('approving tokens', () => {
     it('approves successfully', async () => {
-      const amount = parseEther('100');
+      const amount = parseUnits("100", decimals);
       const result = await token.approve(addr1.address, amount);
       const allowance = await token.allowance(owner.address, addr1.address)
 
@@ -90,7 +91,7 @@ describe('Orange Token contract', () => {
   })
 
   describe('delegated token transfers', () => {
-    const amount = parseEther('100');
+    const amount = parseUnits("100", decimals);
 
     it('transfers successfully', async () => {
       await token.approve(addr1.address, amount);
@@ -115,7 +116,7 @@ describe('Orange Token contract', () => {
     })
 
     it('rejects insufficient balances', async () => {
-      await expect(token.transferFrom(owner.address, addr1.address, parseEther('10000000000'))).to.be.revertedWith('Insufficient balance');
+      await expect(token.transferFrom(owner.address, addr1.address, parseUnits('10000000000', decimals))).to.be.revertedWith('Insufficient balance');
     })
 
     it('rejects not allowed amount', async () => {
@@ -124,7 +125,7 @@ describe('Orange Token contract', () => {
   })
 
   describe('mint', () => {
-    const amount = parseEther('100');
+    const amount = parseUnits("100", decimals);
 
     it('mints successfully', async () => {
       const ownerBalanceBefore = await token.balanceOf(owner.address);
@@ -148,7 +149,7 @@ describe('Orange Token contract', () => {
   })
 
   describe('burn', () => {
-    const amount = parseEther('100');
+    const amount = parseUnits("100", decimals);
 
     it('burns successfully', async () => {
       const ownerBalanceBefore = await token.balanceOf(owner.address);
