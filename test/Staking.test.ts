@@ -23,6 +23,7 @@ describe('Staking contract', () => {
   let decimals: number;
   const zeroAddress = '0x0000000000000000000000000000000000000000';
   const deltaPercent = 1;
+  const annualPercent = 20;
 
   beforeEach(async () => {
     [owner, addr1, ...addrs] = await ethers.getSigners();
@@ -48,28 +49,37 @@ describe('Staking contract', () => {
   });
 
   describe('stakes', () => {
-    const amount = parseUnits("0.00000000001", decimals);
+    const amount = parseUnits("100", decimals);
 
     it('stakes successfully without claim', async () => {
+      const ownerOrangeBalanceBefore = await orangeToken.balanceOf(owner.address);
+      const ownerOrtWethBalanceBefore = await ortWethMockPair.balanceOf(owner.address);
+      const stakingBalanceBefore = await ortWethMockPair.balanceOf(staking.address);
 
       await ortWethMockPair.approve(staking.address, amount);
 
-      const ownerBalancBefore = await ortWethMockPair.balanceOf(owner.address);
-      const stakingBalancBefore = await ortWethMockPair.balanceOf(staking.address);
-
       const result = await staking.stake(amount);
 
-      const ownerBalanceAfter = await ortWethMockPair.balanceOf(owner.address);
+      const [, amountToPayAfter, startDateAfter] = await staking.getUserInfo(owner.address);
+
+      const ownerOrangeBalanceAfter = await orangeToken.balanceOf(owner.address);
+      const ownerOrtWethBalanceAfter = await ortWethMockPair.balanceOf(owner.address);
       const stakingBalanceAfter = await ortWethMockPair.balanceOf(staking.address);
 
-      expect(ownerBalanceAfter).to.equal(ownerBalancBefore.sub(amount));
-      expect(stakingBalanceAfter).to.equal(stakingBalancBefore.add(amount));
+      const minedTx = await result.wait();
+      const txBlock = await ethers.provider.getBlock(minedTx.blockNumber);
+      const txTimestamp = txBlock.timestamp;
+
+      expect(ownerOrangeBalanceAfter).to.equal(ownerOrangeBalanceBefore);
+      expect(ownerOrtWethBalanceAfter).to.equal(ownerOrtWethBalanceBefore.sub(amount));
+      expect(stakingBalanceAfter).to.equal(stakingBalanceBefore.add(amount));
+      expect(amountToPayAfter).to.equal(0);
+      expect(startDateAfter).to.equal(txTimestamp);
 
       await expect(result).to.emit(staking, "Stake")
-        .withArgs(owner.address, amount);
-
-      await expect(result).to.not.emit(orangeToken, "Transfer");
-      await expect(result).to.not.emit(staking, "Claim");
+        .withArgs(owner.address, amount)
+        .and.to.not.emit(orangeToken, "Transfer")
+        .and.to.not.emit(staking, "Claim");
     })
 
     it('stakes successfully with claim', async () => {
@@ -84,7 +94,7 @@ describe('Staking contract', () => {
       await incrementNextBlockTimestamp(259200);
       await ethers.provider.send("evm_mine", []);
 
-      const [, amountToPay,] = await staking.getUserInfo(owner.address);
+      const [, , startDateBefore] = await staking.getUserInfo(owner.address);
 
       await ortWethMockPair.approve(staking.address, amount);
 
@@ -94,12 +104,18 @@ describe('Staking contract', () => {
       const ownerOrtWethBalanceAfter = await ortWethMockPair.balanceOf(owner.address);
       const stakingBalanceAfter = await ortWethMockPair.balanceOf(staking.address);
 
-      expect(ownerOrangeBalanceAfter).to.be.gt(ownerOrangeBalanceBefore.sub(ownerOrangeBalanceBefore.mul(deltaPercent).div(100)));
+      const [, , startDateAfter] = await staking.getUserInfo(owner.address);
 
-      expect(ownerOrangeBalanceAfter).to.be.lt(ownerOrangeBalanceBefore.add(ownerOrangeBalanceBefore.mul(deltaPercent).div(100)));
+      const minedTx = await result.wait();
+      const txBlock = await ethers.provider.getBlock(minedTx.blockNumber);
+      const txTimestamp = txBlock.timestamp;
 
+      const amountToPay = ((ethers.BigNumber.from(txTimestamp).sub(startDateBefore)).mul(amount).mul(annualPercent)).div(3153600000);
+
+      expect(ownerOrangeBalanceAfter).to.equal(ownerOrangeBalanceBefore.add(amountToPay));
       expect(ownerOrtWethBalanceAfter).to.equal(ownerOrtWethBalanceBefore.sub(amount).sub(amount));
       expect(stakingBalanceAfter).to.equal(stakingBalanceBefore.add(amount).add(amount));
+      expect(startDateAfter).to.equal(txTimestamp);
 
       await expect(result).to.emit(staking, "Stake")
         .withArgs(owner.address, amount)
@@ -111,13 +127,9 @@ describe('Staking contract', () => {
   })
 
   describe('claims', () => {
-    const amount = parseUnits("0.00000000001", decimals);
+    const amount = parseUnits("100", decimals);
 
     it('claims without rewards successfully', async () => {
-      await ortWethMockPair.approve(staking.address, amount);
-
-      await staking.stake(amount);
-
       const [, amountToPayBefore, startDateBefore] = await staking.getUserInfo(owner.address);
 
       const ownerOrangeBalanceBefore = await orangeToken.balanceOf(owner.address);
@@ -132,17 +144,11 @@ describe('Staking contract', () => {
       const ownerOrtWethBalanceAfter = await ortWethMockPair.balanceOf(owner.address);
       const stakingBalanceAfter = await ortWethMockPair.balanceOf(staking.address);
 
-      expect(ownerOrangeBalanceAfter).to.be.gt(ownerOrangeBalanceBefore.sub(ownerOrangeBalanceBefore.mul(deltaPercent).div(100)));
-
-      expect(ownerOrangeBalanceAfter).to.be.lt(ownerOrangeBalanceBefore.add(ownerOrangeBalanceBefore.mul(deltaPercent).div(100)));
-
+      expect(ownerOrangeBalanceAfter).to.equal(ownerOrangeBalanceBefore);
       expect(ownerOrtWethBalanceAfter).to.equal(ownerOrtWethBalanceBefore);
       expect(stakingBalanceAfter).to.equal(stakingBalanceBefore);
       expect(amountToPayAfter).to.equal(amountToPayBefore);
-
-      expect(startDateAfter).to.be.gt(startDateBefore.sub(ownerOrangeBalanceBefore.mul(deltaPercent).div(100)));
-
-      expect(startDateAfter).to.be.lt(startDateBefore.add(ownerOrangeBalanceBefore.mul(deltaPercent).div(100)));
+      expect(startDateAfter).to.equal(startDateBefore);
 
       await expect(result).to.not.emit(orangeToken, "Transfer")
         .and.to.not.emit(staking, "Claim");
@@ -156,7 +162,7 @@ describe('Staking contract', () => {
       await incrementNextBlockTimestamp(259200);
       await ethers.provider.send("evm_mine", []);
 
-      const [, amountToPay,] = await staking.getUserInfo(owner.address);
+      const [, , startDateBefore] = await staking.getUserInfo(owner.address);
 
       const ownerOrangeBalanceBefore = await orangeToken.balanceOf(owner.address);
       const ownerOrtWethBalanceBefore = await ortWethMockPair.balanceOf(owner.address);
@@ -168,9 +174,18 @@ describe('Staking contract', () => {
       const ownerOrtWethBalanceAfter = await ortWethMockPair.balanceOf(owner.address);
       const stakingBalanceAfter = await ortWethMockPair.balanceOf(staking.address);
 
-      expect(ownerOrangeBalanceAfter).to.closeTo(ownerOrangeBalanceBefore.add(amountToPay.mul(1).div(100)), ownerOrangeBalanceBefore.add(amountToPay));
+      const [, , startDateAfter] = await staking.getUserInfo(owner.address);
+
+      const minedTx = await result.wait();
+      const txBlock = await ethers.provider.getBlock(minedTx.blockNumber);
+      const txTimestamp = txBlock.timestamp;
+
+      const amountToPay = ((ethers.BigNumber.from(txTimestamp).sub(startDateBefore)).mul(amount).mul(annualPercent)).div(3153600000);
+
+      expect(ownerOrangeBalanceAfter).to.equal(ownerOrangeBalanceBefore.add(amountToPay));
       expect(ownerOrtWethBalanceAfter).to.equal(ownerOrtWethBalanceBefore);
       expect(stakingBalanceAfter).to.equal(stakingBalanceBefore);
+      expect(startDateAfter).to.equal(txTimestamp);
 
       await expect(result).to.emit(orangeToken, "Transfer")
         .withArgs(zeroAddress, owner.address, amountToPay)
@@ -184,36 +199,7 @@ describe('Staking contract', () => {
     it('withdraws successfully without claim', async () => {
       const amount = parseUnits("0", decimals);
 
-      const ownerBalancBefore = await ortWethMockPair.balanceOf(owner.address);
-      const stakingBalancBefore = await ortWethMockPair.balanceOf(staking.address);
-
-      const result = await staking.withdraw(amount);
-
-      const ownerBalanceAfter = await ortWethMockPair.balanceOf(owner.address);
-      const stakingBalanceAfter = await ortWethMockPair.balanceOf(staking.address);
-
-      expect(ownerBalanceAfter).to.equal(ownerBalancBefore);
-      expect(stakingBalanceAfter).to.equal(stakingBalancBefore);
-
-      await expect(result).to.emit(staking, "Withdraw")
-        .withArgs(owner.address, amount);
-
-      await expect(result).to.not.emit(orangeToken, "Transfer")
-        .and.to.not.emit(staking, "Claim");
-    })
-
-
-    it('withdraws successfully with claim', async () => {
-      const amount = parseUnits("0.00000000001", decimals);
-
-      await ortWethMockPair.approve(staking.address, amount);
-
-      await staking.stake(amount);
-
-      await incrementNextBlockTimestamp(259200);
-      ethers.provider.send("evm_mine", []);
-
-      const [, amountToPay,] = await staking.getUserInfo(owner.address);
+      const [, amountToPayBefore, startDateBefore] = await staking.getUserInfo(owner.address);
 
       const ownerOrangeBalanceBefore = await orangeToken.balanceOf(owner.address);
       const ownerOrtWethBalanceBefore = await ortWethMockPair.balanceOf(owner.address);
@@ -225,9 +211,55 @@ describe('Staking contract', () => {
       const ownerOrtWethBalanceAfter = await ortWethMockPair.balanceOf(owner.address);
       const stakingBalanceAfter = await ortWethMockPair.balanceOf(staking.address);
 
+      const [, amountToPayAfter, startDateAfter] = await staking.getUserInfo(owner.address);
+
+      expect(ownerOrangeBalanceAfter).to.equal(ownerOrangeBalanceBefore);
+      expect(ownerOrtWethBalanceAfter).to.equal(ownerOrtWethBalanceBefore);
+      expect(stakingBalanceAfter).to.equal(stakingBalanceBefore);
+      expect(amountToPayAfter).to.equal(amountToPayBefore);
+      expect(startDateAfter).to.equal(startDateBefore);
+
+      await expect(result).to.emit(staking, "Withdraw")
+        .withArgs(owner.address, amount)
+        .and.to.not.emit(orangeToken, "Transfer")
+        .and.to.not.emit(staking, "Claim");
+    })
+
+
+    it('withdraws successfully with claim', async () => {
+      const amount = parseUnits("100", decimals);
+
+      await ortWethMockPair.approve(staking.address, amount);
+
+      await staking.stake(amount);
+
+      await incrementNextBlockTimestamp(259200);
+      ethers.provider.send("evm_mine", []);
+
+      const [, , startDateBefore] = await staking.getUserInfo(owner.address);
+
+      const ownerOrangeBalanceBefore = await orangeToken.balanceOf(owner.address);
+      const ownerOrtWethBalanceBefore = await ortWethMockPair.balanceOf(owner.address);
+      const stakingBalanceBefore = await ortWethMockPair.balanceOf(staking.address);
+
+      const result = await staking.withdraw(amount);
+
+      const ownerOrangeBalanceAfter = await orangeToken.balanceOf(owner.address);
+      const ownerOrtWethBalanceAfter = await ortWethMockPair.balanceOf(owner.address);
+      const stakingBalanceAfter = await ortWethMockPair.balanceOf(staking.address);
+
+      const [, , startDateAfter] = await staking.getUserInfo(owner.address);
+
+      const minedTx = await result.wait();
+      const txBlock = await ethers.provider.getBlock(minedTx.blockNumber);
+      const txTimestamp = txBlock.timestamp;
+
+      const amountToPay = ((ethers.BigNumber.from(txTimestamp).sub(startDateBefore)).mul(amount).mul(annualPercent)).div(3153600000);
+
       expect(ownerOrangeBalanceAfter).to.equal(ownerOrangeBalanceBefore.add(amountToPay));
       expect(ownerOrtWethBalanceAfter).to.equal(ownerOrtWethBalanceBefore.add(amount));
       expect(stakingBalanceAfter).to.equal(stakingBalanceBefore.sub(amount));
+      expect(startDateAfter).to.equal(txTimestamp);
 
       await expect(result).to.emit(staking, "Withdraw")
         .withArgs(owner.address, amount)
@@ -238,7 +270,7 @@ describe('Staking contract', () => {
     })
 
     it('rejects withdraw when amount exceeds staking', async () => {
-      const amount = parseUnits("0.00000000001", decimals);
+      const amount = parseUnits("100", decimals);
 
       await expect(staking.withdraw(amount)).to.be.revertedWith('Amount exceeds staking');
     })
@@ -246,23 +278,22 @@ describe('Staking contract', () => {
   })
 
   describe('gets user info', () => {
-    const amount = parseUnits("0.00000000001", decimals);
+    const amount = parseUnits("100", decimals);
 
     it('gets user info successfully', async () => {
       await ortWethMockPair.approve(staking.address, amount);
 
-      await staking.stake(amount);
+      const result = await staking.stake(amount);
 
       const [totalAmount, amountToPay, startDate] = await staking.getUserInfo(owner.address);
 
+      const minedTx = await result.wait();
+      const txBlock = await ethers.provider.getBlock(minedTx.blockNumber);
+      const txTimestamp = txBlock.timestamp;
+
       expect(totalAmount).to.equal(amount);
       expect(amountToPay).to.equal(0);
-
-      const blockNumBefore = await ethers.provider.getBlockNumber();
-      const blockBefore = await ethers.provider.getBlock(blockNumBefore);
-      const now = blockBefore.timestamp;
-
-      expect(startDate).to.equal(now);
+      expect(startDate).to.equal(txTimestamp);
     })
 
   })
