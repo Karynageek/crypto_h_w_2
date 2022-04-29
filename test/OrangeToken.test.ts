@@ -78,8 +78,9 @@ describe('Orange Token contract', () => {
   })
 
   describe('approving tokens', () => {
+    const amount = parseUnits("100", decimals);
+
     it('approves successfully', async () => {
-      const amount = parseUnits("100", decimals);
       const result = await token.approve(addr1.address, amount);
       const allowance = await token.allowance(owner.address, addr1.address)
 
@@ -88,6 +89,11 @@ describe('Orange Token contract', () => {
       await expect(result).to.emit(token, "Approval")
         .withArgs(owner.address, addr1.address, amount);
     })
+
+    it('rejects approve by zero address', async () => {
+      await expect(token.approve(zeroAddress, amount)).to.be.revertedWith('Approve the zero address');
+    })
+
   })
 
   describe('delegated token transfers', () => {
@@ -98,17 +104,20 @@ describe('Orange Token contract', () => {
 
       const ownerBalanceBefore = await token.balanceOf(owner.address);
       const addr1BalanceBefore = await token.balanceOf(addr1.address);
+      const addr2BalanceBefore = await token.balanceOf(addr2.address);
 
-      const result = await token.transferFrom(owner.address, addr1.address, amount);
+      const result = await token.connect(addr1).transferFrom(owner.address, addr2.address, amount);
 
       const ownerBalanceAfter = await token.balanceOf(owner.address);
       const addr1BalanceAfter = await token.balanceOf(addr1.address);
+      const addr2BalanceAfter = await token.balanceOf(addr2.address);
 
       expect(ownerBalanceAfter).to.equal(ownerBalanceBefore.sub(amount));
-      expect(addr1BalanceAfter).to.equal(addr1BalanceBefore.add(amount));
+      expect(addr1BalanceAfter).to.equal(addr1BalanceBefore);
+      expect(addr2BalanceAfter).to.equal(addr2BalanceBefore.add(amount));
 
       await expect(result).to.emit(token, "Transfer")
-        .withArgs(owner.address, addr1.address, amount);
+        .withArgs(owner.address, addr2.address, amount);
     })
 
     it('rejects transfer by zero address', async () => {

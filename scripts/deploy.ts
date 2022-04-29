@@ -6,7 +6,7 @@ async function main() {
   const name = 'Orange Token';
   const symbol = 'ORT';
   const decimals = 18;
-  const totalSupply = '1000000000'
+  const totalSupply = 1000000000;
 
   const delay = (ms: any) => new Promise((res) => setTimeout(res, ms));
 
@@ -17,24 +17,24 @@ async function main() {
 
   console.log("OrangeToken deployed to:", orangeToken.address);
 
-  const WrappedETH = await ethers.getContractFactory("WrappedETH") as WrappedETH__factory;
-  const wrappedETH = await WrappedETH.deploy();
+  // const WrappedETH = await ethers.getContractFactory("WrappedETH") as WrappedETH__factory;
+  // const wrappedETH = await WrappedETH.deploy();
 
-  await wrappedETH.deployed();
+  // await wrappedETH.deployed();
 
-  console.log("WrappedETH deployed to:", wrappedETH.address);
+  // console.log("WrappedETH deployed to:", wrappedETH.address);
 
   await delay(35000);
 
   await hre.run("verify:verify", {
     address: orangeToken.address,
-    constructorArguments: ["Orange Token", "ORT", 18, 1000000000],
+    constructorArguments: [name, symbol, decimals, totalSupply],
   });
 
-  await hre.run("verify:verify", {
-    address: wrappedETH.address,
-    constructorArguments: [],
-  });
+  // await hre.run("verify:verify", {
+  //   address: wrappedETH.address,
+  //   constructorArguments: [],
+  // });
 }
 
 main().catch((error) => {

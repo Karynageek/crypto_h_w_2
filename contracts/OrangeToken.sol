@@ -92,8 +92,8 @@ contract OrangeToken is AccessControl {
     ) external returns (bool success) {
         require(_to != address(0), "Transfer to the zero address");
         require(_value <= _balances[_from], "Insufficient balance");
-        require(_value <= _allowances[_from][_to], "Not allowed amount");
-        _allowances[_from][_to] -= _value;
+        require(_value <= _allowances[_from][msg.sender], "Not allowed amount");
+        _allowances[_from][msg.sender] -= _value;
         _transfer(_from, _to, _value);
         return true;
     }
@@ -102,6 +102,7 @@ contract OrangeToken is AccessControl {
         external
         returns (bool success)
     {
+        require(_spender != address(0), "Approve the zero address");
         _allowances[msg.sender][_spender] = _value;
         emit Approval(msg.sender, _spender, _value);
         return true;
